@@ -1,0 +1,88 @@
+#Instead of writing separate blocks for each table, we’ll define a configuration list #that holds the table name, attributes, and CSV path. Then we’ll loop through that list #to load, query, and append data. This way, your script becomes a reusable template for #any number of tables.
+#Here’s the generalized version:
+
+
+
+
+import sqlite3
+import pandas as pd
+
+# ---------- Utility Functions ----------
+
+def load_csv_to_db(conn, file_path, table_name, attribute_list, replace=True):
+    """Load a CSV file into a SQLite table."""
+    df = pd.read_csv(file_path, names=attribute_list)
+    df.to_sql(table_name, conn, if_exists='replace' if replace else 'append', index=False)
+    print(f"Table '{table_name}' is ready")
+
+def run_query(conn, query):
+    """Execute a SQL query and print results."""
+    result = pd.read_sql(query, conn)
+    print(query)
+    print(result)
+    return result
+
+def append_data(conn, table_name, data_dict):
+    """Append a dictionary of data into a table."""
+    df = pd.DataFrame(data_dict)
+    df.to_sql(table_name, conn, if_exists='append', index=False)
+    print(f"Data appended successfully to '{table_name}'")
+
+# ---------- Table Configurations ----------
+tables_config = [
+    {
+        "name": "INSTRUCTOR",
+        "attributes": ['ID', 'FNAME', 'LNAME', 'CITY', 'CCODE'],
+        "csv": "/home/project/INSTRUCTOR.csv",
+        "append_data": {
+            'ID': [100],
+            'FNAME': ['John'],
+            'LNAME': ['Doe'],
+            'CITY': ['Paris'],
+            'CCODE': ['FR']
+        },
+        "queries": [
+            "SELECT * FROM INSTRUCTOR",
+            "SELECT FNAME FROM INSTRUCTOR",
+            "SELECT COUNT(*) FROM INSTRUCTOR"
+        ]
+    },
+    {
+        "name": "Departments",
+        "attributes": ['DEPT_ID', 'DEP_NAME', 'MANAGER_ID', 'LOC_ID'],
+        "csv": "/home/project/Departments.csv",
+        "append_data": {
+            'DEPT_ID': [9],
+            'DEP_NAME': ['Quality Assurance'],
+            'MANAGER_ID': ['30010'],
+            'LOC_ID': ['L0010']
+        },
+        "queries": [
+            "SELECT * FROM Departments",
+            "SELECT DEP_NAME FROM Departments",
+            "SELECT COUNT(*) FROM Departments"
+        ]
+    }
+]
+
+# ---------- Main Script ----------
+conn = sqlite3.connect('STAFF.db')
+
+for table in tables_config:
+    # Load CSV
+    load_csv_to_db(conn, table["csv"], table["name"], table["attributes"])
+    
+    # Run queries
+    for q in table["queries"]:
+        run_query(conn, q)
+    
+    # Append new data
+    append_data(conn, table["name"], table["append_data"])
+    
+    # Verify row count again
+    run_query(conn, f"SELECT COUNT(*) FROM {table['name']}")
+
+# Close connection
+conn.close()
+
+### tested and worked ***

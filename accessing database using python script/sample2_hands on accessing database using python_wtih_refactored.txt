@@ -1,0 +1,215 @@
+##** hands on accessing database using python script **
+
+#Scenario
+#Consider a dataset of employee records that is available with an HR team in a CSV file.
+#As a Data Engineer, you are required to create the database called STAFF and load the 
+#contents of the CSV file as a table called INSTRUCTORS
+
+#The headers of the available data are :
+#Header	Description
+#ID	Employee ID
+#FNAME	First Name
+#LNAME	Last Name
+#CITY	City of residence
+#CCODE	Country code (2 letters)
+
+import sqlite3
+import pandas as pd
+
+# Connect to the SQLite3 service
+conn = sqlite3.connect('STAFF.db')
+
+# Define table parameters
+table_name = 'INSTRUCTOR'
+attribute_list = ['ID', 'FNAME', 'LNAME', 'CITY', 'CCODE']
+
+# Read the CSV data
+file_path = '/home/project/INSTRUCTOR.csv'
+df = pd.read_csv(file_path, names = attribute_list)
+
+# Load the CSV to the database
+df.to_sql(table_name, conn, if_exists = 'replace', index = False)
+print('Table is ready')
+
+# Query 1: Viewing all the data in the table.
+query_statement = f"SELECT * FROM {table_name}"
+query_output = pd.read_sql(query_statement, conn)
+print(query_statement)
+print(query_output)
+
+# Query 2: Display only the FNAME column for the full table.
+query_statement = f"SELECT FNAME FROM {table_name}"
+query_output = pd.read_sql(query_statement, conn)
+print(query_statement)
+print(query_output)
+
+# Query 3: Display the count of the total number of rows.
+query_statement = f"SELECT COUNT(*) FROM {table_name}"
+query_output = pd.read_sql(query_statement, conn)
+print(query_statement)
+print(query_output)
+
+# Define data to be appended
+data_dict = {'ID' : [100],
+            'FNAME' : ['John'],
+            'LNAME' : ['Doe'],
+            'CITY' : ['Paris'],
+            'CCODE' : ['FR']}
+data_append = pd.DataFrame(data_dict)
+
+# Append data to the table
+data_append.to_sql(table_name, conn, if_exists = 'append', index = False)
+print('Data appended successfully')
+
+# Query 4: Display the count of the total number of rows.
+query_statement = f"SELECT COUNT(*) FROM {table_name}"
+query_output = pd.read_sql(query_statement, conn)
+print(query_statement)
+print(query_output)
+
+#Another practice problem 
+##Create another table called Departments in the same database STAFF
+# The attributes of the table are as shown below.
+# Header	Description
+# DEPT_ID	Department ID
+# DEP_NAME	Department Name
+# MANAGER_ID	Manager ID
+# LOC_ID	Location ID
+
+
+# Define table parameters
+table_name_1 = 'Departments'
+attribute_list_1 = ['DEPT_ID', 'DEP_NAME', 'MANAGER_ID', 'LOC_ID']
+
+# Read the CSV data
+file_path_1 = '/home/project/Departments.csv'
+df = pd.read_csv(file_path_1, names = attribute_list_1)
+
+# Load the CSV to the database
+df.to_sql(table_name_1, conn, if_exists = 'replace', index = False)
+print('Table is ready')
+
+# Query 1: Viewing all the data in the table.
+query_statement = f"SELECT * FROM {table_name_1}"
+query_output = pd.read_sql(query_statement, conn)
+print(query_statement)
+print(query_output)
+
+# Query 2: Display only the FNAME column for the full table.
+query_statement = f"SELECT DEP_NAME FROM {table_name_1}"
+query_output = pd.read_sql(query_statement, conn)
+print(query_statement)
+print(query_output)
+
+# Query 3: Display the count of the total number of rows.
+query_statement = f"SELECT COUNT(*) FROM {table_name_1}"
+query_output = pd.read_sql(query_statement, conn)
+print(query_statement)
+print(query_output)
+
+# Define data to be appended
+data_new = {'DEPT_ID' : [9],
+            'DEP_NAME' : ['Quality Assurance'],
+            'MANAGER_ID' : ['30010'],
+            'LOC_ID' : ['L0010']}
+data_append = pd.DataFrame(data_new)
+
+# Append data to the table
+data_append.to_sql(table_name_1, conn, if_exists = 'append', index = False)
+print('Data appended successfully')
+
+# Query 4: Display the count of the total number of rows.
+query_statement = f"SELECT COUNT(*) FROM {table_name_1}"
+query_output = pd.read_sql(query_statement, conn)
+print(query_statement)
+print(query_output)
+
+# Close the connection
+conn.close()
+
+
+## workind result but need to be refactored like organizing more 
+# using functions to look more elegant to be refactored next day
+
+##REFACTORED VERSION
+
+import sqlite3
+import pandas as pd
+
+# ---------- Utility Functions ----------
+
+def load_csv_to_db(conn, file_path, table_name, attribute_list, replace=True):
+    """Load a CSV file into a SQLite table."""
+    df = pd.read_csv(file_path, names=attribute_list)
+    df.to_sql(table_name, conn, if_exists='replace' if replace else 'append', index=False)
+    print(f"Table '{table_name}' is ready")
+
+def run_query(conn, query):
+    """Execute a SQL query and print results."""
+    result = pd.read_sql(query, conn)
+    print(query)
+    print(result)
+    return result
+
+def append_data(conn, table_name, data_dict):
+    """Append a dictionary of data into a table."""
+    df = pd.DataFrame(data_dict)
+    df.to_sql(table_name, conn, if_exists='append', index=False)
+    print(f"Data appended successfully to '{table_name}'")
+
+# ---------- Main Script ----------
+
+# Connect to the SQLite3 service
+conn = sqlite3.connect('STAFF.db')
+
+# --- INSTRUCTOR Table ---
+instructor_table = 'INSTRUCTOR'
+instructor_attrs = ['ID', 'FNAME', 'LNAME', 'CITY', 'CCODE']
+instructor_csv = '/home/project/INSTRUCTOR.csv'
+
+load_csv_to_db(conn, instructor_csv, instructor_table, instructor_attrs)
+
+# Queries
+run_query(conn, f"SELECT * FROM {instructor_table}")
+run_query(conn, f"SELECT FNAME FROM {instructor_table}")
+run_query(conn, f"SELECT COUNT(*) FROM {instructor_table}")
+
+# Append new instructor
+new_instructor = {
+    'ID': [100],
+    'FNAME': ['John'],
+    'LNAME': ['Doe'],
+    'CITY': ['Paris'],
+    'CCODE': ['FR']
+}
+append_data(conn, instructor_table, new_instructor)
+
+# Verify row count
+run_query(conn, f"SELECT COUNT(*) FROM {instructor_table}")
+
+# --- Departments Table ---
+dept_table = 'Departments'
+dept_attrs = ['DEPT_ID', 'DEP_NAME', 'MANAGER_ID', 'LOC_ID']
+dept_csv = '/home/project/Departments.csv'
+
+load_csv_to_db(conn, dept_csv, dept_table, dept_attrs)
+
+# Queries
+run_query(conn, f"SELECT * FROM {dept_table}")
+run_query(conn, f"SELECT DEP_NAME FROM {dept_table}")
+run_query(conn, f"SELECT COUNT(*) FROM {dept_table}")
+
+# Append new department
+new_dept = {
+    'DEPT_ID': [9],
+    'DEP_NAME': ['Quality Assurance'],
+    'MANAGER_ID': ['30010'],
+    'LOC_ID': ['L0010']
+}
+append_data(conn, dept_table, new_dept)
+
+# Verify row count
+run_query(conn, f"SELECT COUNT(*) FROM {dept_table}")
+
+# Close connection
+conn.close()

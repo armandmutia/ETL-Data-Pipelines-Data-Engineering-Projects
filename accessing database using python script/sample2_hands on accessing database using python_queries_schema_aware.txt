@@ -1,0 +1,85 @@
+
+#let’s make the queries schema‑aware so you don’t have to hardcode column names like FNAME #or DEP_NAME. Instead, we’ll dynamically pull the column list from the table definition and #then generate queries accordingly. This way, the script adapts to any table you configure.
+#Here’s the enhanced template:
+
+import sqlite3
+import pandas as pd
+
+# ---------- Utility Functions ----------
+
+def load_csv_to_db(conn, file_path, table_name, attribute_list, replace=True):
+    """Load a CSV file into a SQLite table."""
+    df = pd.read_csv(file_path, names=attribute_list)
+    df.to_sql(table_name, conn, if_exists='replace' if replace else 'append', index=False)
+    print(f"Table '{table_name}' is ready")
+
+def run_query(conn, query):
+    """Execute a SQL query and print results."""
+    result = pd.read_sql(query, conn)
+    print(query)
+    print(result)
+    return result
+
+def append_data(conn, table_name, data_dict):
+    """Append a dictionary of data into a table."""
+    df = pd.DataFrame(data_dict)
+    df.to_sql(table_name, conn, if_exists='append', index=False)
+    print(f"Data appended successfully to '{table_name}'")
+
+def get_columns(conn, table_name):
+    """Retrieve column names for a given table."""
+    cursor = conn.execute(f"PRAGMA table_info({table_name})")
+    return [row[1] for row in cursor.fetchall()]
+
+# ---------- Table Configurations ----------
+tables_config = [
+    {
+        "name": "INSTRUCTOR",
+        "attributes": ['ID', 'FNAME', 'LNAME', 'CITY', 'CCODE'],
+        "csv": "/home/project/INSTRUCTOR.csv",
+        "append_data": {
+            'ID': [100],
+            'FNAME': ['John'],
+            'LNAME': ['Doe'],
+            'CITY': ['Paris'],
+            'CCODE': ['FR']
+        }
+    },
+    {
+        "name": "Departments",
+        "attributes": ['DEPT_ID', 'DEP_NAME', 'MANAGER_ID', 'LOC_ID'],
+        "csv": "/home/project/Departments.csv",
+        "append_data": {
+            'DEPT_ID': [9],
+            'DEP_NAME': ['Quality Assurance'],
+            'MANAGER_ID': ['30010'],
+            'LOC_ID': ['L0010']
+        }
+    }
+]
+
+# ---------- Main Script ----------
+conn = sqlite3.connect('STAFF.db')
+
+for table in tables_config:
+    # Load CSV
+    load_csv_to_db(conn, table["csv"], table["name"], table["attributes"])
+    
+    # Get schema dynamically
+    cols = get_columns(conn, table["name"])
+    
+    # Run queries dynamically
+    run_query(conn, f"SELECT * FROM {table['name']}")
+    run_query(conn, f"SELECT {cols[1]} FROM {table['name']}")  # second column as example
+    run_query(conn, f"SELECT COUNT(*) FROM {table['name']}")
+    
+    # Append new data
+    append_data(conn, table["name"], table["append_data"])
+    
+    # Verify row count again
+    run_query(conn, f"SELECT COUNT(*) FROM {table['name']}")
+
+# Close connection
+conn.close()
+
+### tested and working

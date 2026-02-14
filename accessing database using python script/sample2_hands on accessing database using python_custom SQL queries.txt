@@ -1,0 +1,345 @@
+let’s make the template fully config‑driven so you can specify exactly which columns to query for each table. That way, you don’t rely on hardcoded indexes or assumptions—the config itself tells the script what to display.
+Here’s the refined version:
+
+import sqlite3
+import pandas as pd
+
+# ---------- Utility Functions ----------
+
+def load_csv_to_db(conn, file_path, table_name, attribute_list, replace=True):
+    """Load a CSV file into a SQLite table."""
+    df = pd.read_csv(file_path, names=attribute_list)
+    df.to_sql(table_name, conn, if_exists='replace' if replace else 'append', index=False)
+    print(f"Table '{table_name}' is ready")
+
+def run_query(conn, query):
+    """Execute a SQL query and print results."""
+    result = pd.read_sql(query, conn)
+    print(query)
+    print(result)
+    return result
+
+def append_data(conn, table_name, data_dict):
+    """Append a dictionary of data into a table."""
+    df = pd.DataFrame(data_dict)
+    df.to_sql(table_name, conn, if_exists='append', index=False)
+    print(f"Data appended successfully to '{table_name}'")
+
+def get_columns(conn, table_name):
+    """Retrieve column names for a given table."""
+    cursor = conn.execute(f"PRAGMA table_info({table_name})")
+    return [row[1] for row in cursor.fetchall()]
+
+# ---------- Table Configurations ----------
+tables_config = [
+    {
+        "name": "INSTRUCTOR",
+        "attributes": ['ID', 'FNAME', 'LNAME', 'CITY', 'CCODE'],
+        "csv": "/home/project/INSTRUCTOR.csv",
+        "append_data": {
+            'ID': [100],
+            'FNAME': ['John'],
+            'LNAME': ['Doe'],
+            'CITY': ['Paris'],
+            'CCODE': ['FR']
+        },
+        "query_columns": ["FNAME"]  # specify which columns to query
+    },
+    {
+        "name": "Departments",
+        "attributes": ['DEPT_ID', 'DEP_NAME', 'MANAGER_ID', 'LOC_ID'],
+        "csv": "/home/project/Departments.csv",
+        "append_data": {
+            'DEPT_ID': [9],
+            'DEP_NAME': ['Quality Assurance'],
+            'MANAGER_ID': ['30010'],
+            'LOC_ID': ['L0010']
+        },
+        "query_columns": ["DEP_NAME"]  # specify which columns to query
+    }
+]
+
+# ---------- Main Script ----------
+conn = sqlite3.connect('STAFF.db')
+
+for table in tables_config:
+    # Load CSV
+    load_csv_to_db(conn, table["csv"], table["name"], table["attributes"])
+    
+    # Get schema dynamically
+    cols = get_columns(conn, table["name"])
+    
+    # Run queries
+    run_query(conn, f"SELECT * FROM {table['name']}")
+    
+    # Use config-driven column queries
+    for col in table["query_columns"]:
+        if col in cols:
+            run_query(conn, f"SELECT {col} FROM {table['name']}")
+        else:
+            print(f"Column '{col}' not found in {table['name']}")
+    
+    run_query(conn, f"SELECT COUNT(*) FROM {table['name']}")
+    
+    # Append new data
+    append_data(conn, table["name"], table["append_data"])
+    
+    # Verify row count again
+    run_query(conn, f"SELECT COUNT(*) FROM {table['name']}")
+
+# Close connection
+conn.close()
+
+Key Upgrades
+• 	 in config → you decide which columns to query per table.
+• 	Validation → if a column isn’t in the schema, the script warns instead of failing.
+• 	Reusable template → just add another dictionary to  with its CSV, attributes, append data, and query columns.
+
+This structure is now a plug‑and‑play framework: you can archive it, reuse it for committee work, or adapt it for any dataset with minimal edits.
+Would you like me to also show you how to extend this so the config can include custom queries (e.g., “SELECT CITY, COUNT(*) GROUP BY CITY”) alongside the standard ones? That would give you maximum flexibility.
+
+let’s make the framework fully flexible by allowing each table’s configuration to include not only column queries but also custom SQL queries. This way, you can mix standard queries (like ) with more advanced ones (like grouping, filtering, or joins) without touching the main script.
+Here’s the upgraded template:
+
+import sqlite3
+import pandas as pd
+
+# ---------- Utility Functions ----------
+
+def load_csv_to_db(conn, file_path, table_name, attribute_list, replace=True):
+    """Load a CSV file into a SQLite table."""
+    df = pd.read_csv(file_path, names=attribute_list)
+    df.to_sql(table_name, conn, if_exists='replace' if replace else 'append', index=False)
+    print(f"Table '{table_name}' is ready")
+
+def run_query(conn, query):
+    """Execute a SQL query and print results."""
+    result = pd.read_sql(query, conn)
+    print(query)
+    print(result)
+    return result
+
+def append_data(conn, table_name, data_dict):
+    """Append a dictionary of data into a table."""
+    df = pd.DataFrame(data_dict)
+    df.to_sql(table_name, conn, if_exists='append', index=False)
+    print(f"Data appended successfully to '{table_name}'")
+
+def get_columns(conn, table_name):
+    """Retrieve column names for a given table."""
+    cursor = conn.execute(f"PRAGMA table_info({table_name})")
+    return [row[1] for row in cursor.fetchall()]
+
+# ---------- Table Configurations ----------
+tables_config = [
+    {
+        "name": "INSTRUCTOR",
+        "attributes": ['ID', 'FNAME', 'LNAME', 'CITY', 'CCODE'],
+        "csv": "/home/project/INSTRUCTOR.csv",
+        "append_data": {
+            'ID': [100],
+            'FNAME': ['John'],
+            'LNAME': ['Doe'],
+            'CITY': ['Paris'],
+            'CCODE': ['FR']
+        },
+        "query_columns": ["FNAME"],  # standard column queries
+        "custom_queries": [
+            "SELECT CITY, COUNT(*) AS num_instructors FROM INSTRUCTOR GROUP BY CITY",
+            "SELECT CCODE, COUNT(*) AS num_instructors FROM INSTRUCTOR GROUP BY CCODE"
+        ]
+    },
+    {
+        "name": "Departments",
+        "attributes": ['DEPT_ID', 'DEP_NAME', 'MANAGER_ID', 'LOC_ID'],
+        "csv": "/home/project/Departments.csv",
+        "append_data": {
+            'DEPT_ID': [9],
+            'DEP_NAME': ['Quality Assurance'],
+            'MANAGER_ID': ['30010'],
+            'LOC_ID': ['L0010']
+        },
+        "query_columns": ["DEP_NAME"],  # standard column queries
+        "custom_queries": [
+            "SELECT LOC_ID, COUNT(*) AS num_departments FROM Departments GROUP BY LOC_ID",
+            "SELECT MANAGER_ID, DEP_NAME FROM Departments WHERE DEP_NAME LIKE '%Quality%'"
+        ]
+    }
+]
+
+# ---------- Main Script ----------
+conn = sqlite3.connect('STAFF.db')
+
+for table in tables_config:
+    # Load CSV
+    load_csv_to_db(conn, table["csv"], table["name"], table["attributes"])
+    
+    # Get schema dynamically
+    cols = get_columns(conn, table["name"])
+    
+    # Run standard queries
+    run_query(conn, f"SELECT * FROM {table['name']}")
+    
+    for col in table.get("query_columns", []):
+        if col in cols:
+            run_query(conn, f"SELECT {col} FROM {table['name']}")
+        else:
+            print(f"Column '{col}' not found in {table['name']}")
+    
+    run_query(conn, f"SELECT COUNT(*) FROM {table['name']}")
+    
+    # Append new data
+    append_data(conn, table["name"], table["append_data"])
+    
+    # Verify row count again
+    run_query(conn, f"SELECT COUNT(*) FROM {table['name']}")
+    
+    # Run custom queries
+    for cq in table.get("custom_queries", []):
+        run_query(conn, cq)
+
+# Close connection
+conn.close()
+
+Benefits of this version
+• 	Config‑driven queries: You can specify both  and  per table.
+• 	Dynamic schema validation: Column queries are checked against actual table columns.
+• 	Maximum flexibility: Add grouping, filtering, joins, or aggregations without editing the main loop—just update the config.
+
+This is now a complete reusable framework:
+• 	Add new tables by extending .
+• 	Control which columns to query.
+• 	Drop in any custom SQL you want.
+
+Would you like me to also show you how to extend this so multiple tables can be joined together (e.g.,  joined with  on a manager ID) using the same config system? That would make it a full mini‑ETL pipeline.
+
+let’s extend the framework so you can also define joins between tables right inside the configuration. This way, you can run multi‑table queries (like combining  with ) without rewriting the main loop.
+Here’s the fully generalized version:
+
+import sqlite3
+import pandas as pd
+
+# ---------- Utility Functions ----------
+
+def load_csv_to_db(conn, file_path, table_name, attribute_list, replace=True):
+    """Load a CSV file into a SQLite table."""
+    df = pd.read_csv(file_path, names=attribute_list)
+    df.to_sql(table_name, conn, if_exists='replace' if replace else 'append', index=False)
+    print(f"Table '{table_name}' is ready")
+
+def run_query(conn, query):
+    """Execute a SQL query and print results."""
+    result = pd.read_sql(query, conn)
+    print(query)
+    print(result)
+    return result
+
+def append_data(conn, table_name, data_dict):
+    """Append a dictionary of data into a table."""
+    df = pd.DataFrame(data_dict)
+    df.to_sql(table_name, conn, if_exists='append', index=False)
+    print(f"Data appended successfully to '{table_name}'")
+
+def get_columns(conn, table_name):
+    """Retrieve column names for a given table."""
+    cursor = conn.execute(f"PRAGMA table_info({table_name})")
+    return [row[1] for row in cursor.fetchall()]
+
+# ---------- Table Configurations ----------
+tables_config = [
+    {
+        "name": "INSTRUCTOR",
+        "attributes": ['ID', 'FNAME', 'LNAME', 'CITY', 'CCODE'],
+        "csv": "/home/project/INSTRUCTOR.csv",
+        "append_data": {
+            'ID': [100],
+            'FNAME': ['John'],
+            'LNAME': ['Doe'],
+            'CITY': ['Paris'],
+            'CCODE': ['FR']
+        },
+        "query_columns": ["FNAME"],
+        "custom_queries": [
+            "SELECT CITY, COUNT(*) AS num_instructors FROM INSTRUCTOR GROUP BY CITY"
+        ]
+    },
+    {
+        "name": "Departments",
+        "attributes": ['DEPT_ID', 'DEP_NAME', 'MANAGER_ID', 'LOC_ID'],
+        "csv": "/home/project/Departments.csv",
+        "append_data": {
+            'DEPT_ID': [9],
+            'DEP_NAME': ['Quality Assurance'],
+            'MANAGER_ID': ['30010'],
+            'LOC_ID': ['L0010']
+        },
+        "query_columns": ["DEP_NAME"],
+        "custom_queries": [
+            "SELECT LOC_ID, COUNT(*) AS num_departments FROM Departments GROUP BY LOC_ID"
+        ]
+    }
+]
+
+# ---------- Join Configurations ----------
+joins_config = [
+    {
+        "description": "Join INSTRUCTOR with Departments on CITY vs LOC_ID (example)",
+        "query": """
+            SELECT I.FNAME, I.LNAME, I.CITY, D.DEP_NAME
+            FROM INSTRUCTOR I
+            JOIN Departments D
+            ON I.CITY = D.LOC_ID
+        """
+    },
+    {
+        "description": "Join INSTRUCTOR with Departments by Manager ID (if schema allows)",
+        "query": """
+            SELECT I.FNAME, I.LNAME, D.DEP_NAME, D.MANAGER_ID
+            FROM INSTRUCTOR I
+            JOIN Departments D
+            ON I.ID = D.MANAGER_ID
+        """
+    }
+]
+
+# ---------- Main Script ----------
+conn = sqlite3.connect('STAFF.db')
+
+# Process each table
+for table in tables_config:
+    load_csv_to_db(conn, table["csv"], table["name"], table["attributes"])
+    cols = get_columns(conn, table["name"])
+    
+    run_query(conn, f"SELECT * FROM {table['name']}")
+    
+    for col in table.get("query_columns", []):
+        if col in cols:
+            run_query(conn, f"SELECT {col} FROM {table['name']}")
+        else:
+            print(f"Column '{col}' not found in {table['name']}")
+    
+    run_query(conn, f"SELECT COUNT(*) FROM {table['name']}")
+    append_data(conn, table["name"], table["append_data"])
+    run_query(conn, f"SELECT COUNT(*) FROM {table['name']}")
+    
+    for cq in table.get("custom_queries", []):
+        run_query(conn, cq)
+
+# Process joins
+for join in joins_config:
+    print(f"\n--- {join['description']} ---")
+    run_query(conn, join["query"])
+
+conn.close()
+
+What’s new
+• 	: a separate list where you define multi‑table queries with a description and SQL.
+• 	The main loop now runs through these joins after loading and querying individual tables.
+• 	You can archive and extend this easily: just add more join dictionaries with your SQL.
+
+This makes your script a mini ETL/query framework:
+• 	Tables are loaded from CSVs.
+• 	Standard queries and custom queries are run per table.
+• 	Joins are executed across tables.
+
+### teste and worked##
