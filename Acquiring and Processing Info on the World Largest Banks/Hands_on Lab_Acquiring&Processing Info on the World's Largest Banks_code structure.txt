@@ -1,0 +1,75 @@
+Code structure
+ETL Project Structure: Top 10 Banks by Market Cap
+
+# etl_project_banks.py
+
+# 📦 Import required libraries
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import numpy as np
+import sqlite3
+from datetime import datetime
+
+# 🧪 Extract function
+def extract_bank_data(url, table_heading):
+    '''Extracts bank data from the specified section of the webpage.'''
+    return df
+
+# 🔁 Transform function
+def transform_currency(df, exchange_rate_path):
+    '''Adds market cap columns in GBP, EUR, INR using exchange rates from CSV.'''
+    return df
+
+# 💾 Load to CSV
+def load_to_csv(df, csv_path):
+    '''Saves the transformed dataframe to a CSV file.'''
+
+# 🗄️ Load to SQL
+def load_to_db(df, sql_connection, table_name):
+    '''Saves the dataframe to a SQL database table.'''
+
+# 🔍 Query function
+def run_query(query_statement, sql_connection):
+    '''Runs a SQL query and prints the result.'''
+
+# 📝 Logging function
+def log_progress(message):
+    '''Logs progress messages with timestamps to a log file.'''
+
+# 🚀 Main execution block
+url = 'https://example.com/bank_market_cap_page'
+table_heading = 'By Market Capitalization'
+exchange_rate_path = './exchange_rates.csv'
+csv_path = './Top_10_Banks_by_MarketCap.csv'
+db_name = 'Global_Banking.db'
+table_name = 'Top_Banks'
+
+log_progress('Initialization complete. Starting ETL process.')
+
+df = extract_bank_data(url, table_heading)
+log_progress('Data extraction complete.')
+
+df = transform_currency(df, exchange_rate_path)
+log_progress('Currency transformation complete.')
+
+load_to_csv(df, csv_path)
+log_progress('Data saved to CSV.')
+
+sql_connection = sqlite3.connect(db_name)
+log_progress('SQL connection established.')
+
+load_to_db(df, sql_connection, table_name)
+log_progress('Data loaded to database.')
+
+# 🌍 Regional queries
+query_london = f"SELECT Name, MC_GBP_Billion FROM {table_name}"
+query_berlin = f"SELECT Name, MC_EUR_Billion FROM {table_name}"
+query_delhi = f"SELECT Name, MC_INR_Billion FROM {table_name}"
+
+run_query(query_london, sql_connection)
+run_query(query_berlin, sql_connection)
+run_query(query_delhi, sql_connection)
+
+log_progress('All queries executed. ETL process complete.')
+sql_connection.close()

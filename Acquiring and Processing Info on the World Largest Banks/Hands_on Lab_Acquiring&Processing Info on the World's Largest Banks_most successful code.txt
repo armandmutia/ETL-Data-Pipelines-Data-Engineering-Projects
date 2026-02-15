@@ -1,0 +1,116 @@
+# Code for ETL operations on Largest Banks data
+
+# Importing the required libraries
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import numpy as np
+import sqlite3
+from datetime import datetime
+
+# ---------------- Logging ----------------
+def log_progress(message):
+    '''Logs progress messages with timestamps to code_log.txt'''
+    timestamp_format = '%Y-%m-%d %H:%M:%S'  # Year-Month-Day Hour:Minute:Second
+    now = datetime.now()
+    timestamp = now.strftime(timestamp_format)
+    with open("code_log.txt", "a") as f:
+        f.write(timestamp + " : " + message + "\n")
+
+# ---------------- Extraction ----------------
+def extract(url, table_attribs):
+    '''Extracts bank data from the "By market capitalization" table'''
+    page = requests.get(url).text
+    soup = BeautifulSoup(page, "lxml")
+
+    rows_html = soup.find_all("tbody")[0].find_all("tr")  # first table under heading
+    rows = []
+
+    for row in rows_html:
+        cols = row.find_all("td")
+        if len(cols) != 0:
+            name = cols[1].text.strip()
+            mc_usd = cols[2].text.strip().replace("\n", "").replace(",", "").split()[0]
+            try:
+                mc_usd = float(mc_usd)
+                rows.append({"Name": name, "MC_USD_Billion": mc_usd})
+            except:
+                continue
+
+    # Build DataFrame once from collected rows
+    df = pd.DataFrame(rows, columns=table_attribs)
+    return df
+
+# ---------------- Transformation ----------------
+def transform(df, csv_path):
+    '''Transforms Market Cap from USD to GBP, EUR, INR using exchange rates from CSV'''
+
+    # Read exchange rate CSV
+    rates_df = pd.read_csv(csv_path)
+
+    # Convert to dictionary using required syntax
+    exchange_rate = rates_df.set_index('Currency').to_dict()['Rate']
+
+    # Add transformed columns with rounding to 2 decimal places
+    df['MC_GBP_Billion'] = [np.round(x * exchange_rate['GBP'], 2) for x in df['MC_USD_Billion']]
+    df['MC_EUR_Billion'] = [np.round(x * exchange_rate['EUR'], 2) for x in df['MC_USD_Billion']]
+    df['MC_INR_Billion'] = [np.round(x * exchange_rate['INR'], 2) for x in df['MC_USD_Billion']]
+    
+    
+    return df
+
+# ---------------- Load to CSV ----------------
+def load_to_csv(df, output_path):
+    '''Saves dataframe to CSV'''
+    df.to_csv(output_path, index=False)
+
+# ---------------- Load to Database ----------------
+def load_to_db(df, sql_connection, table_name):
+    '''Saves dataframe to SQLite database'''
+    df.to_sql(table_name, sql_connection, if_exists="replace", index=False)
+
+# ---------------- Run Queries ----------------
+def run_query(query_statement, sql_connection):
+    '''Runs SQL query and prints results'''
+    print(query_statement)
+    query_output = pd.read_sql(query_statement, sql_connection)
+    print(query_output)
+
+# # ---------------- Main Execution ----------------
+url = "https://web.archive.org/web/20230908091635/https://en.wikipedia.org/wiki/List_of_largest_banks"
+csv_path = "./exchange_rate.csv"
+output_path = "./Largest_banks_data.csv"
+db_name = "Banks.db"
+table_name = "Largest_banks"
+
+log_progress("Preliminaries complete. Initiating ETL process")
+
+df = extract(url, ["Name", "MC_USD_Billion"])
+log_progress("Data extraction complete. Initiating Transformation process")
+
+df = transform(df, csv_path)
+log_progress("Data transformation complete. Initiating Loading process")
+pd.set_option('display.max_columns', None) # ✅ Force pandas to show all columns in Cloud IDE
+# print("Combined Transformed Output:") # Print the full transformed DataFrame
+# print(df)
+
+# 🔑 Quiz requirement: print the EUR value of the 5th largest bank
+# print("Market Cap of 5th largest bank in EUR (Billion):", df['MC_EUR_Billion'][4])
+
+load_to_csv(df, output_path)
+log_progress("Data saved to CSV file")
+
+sql_connection = sqlite3.connect(db_name)
+log_progress("SQL Connection initiated")
+
+load_to_db(df, sql_connection, table_name)
+log_progress("Data loaded to Database as a table, Executing queries")
+
+# Queries
+run_query(f"SELECT * FROM {table_name}", sql_connection)
+run_query(f"SELECT AVG(MC_GBP_Billion) FROM {table_name}", sql_connection)
+run_query(f"SELECT Name FROM {table_name} LIMIT 5", sql_connection)
+
+log_progress("Process Complete")
+sql_connection.close()
+log_progress("Server Connection closed")
