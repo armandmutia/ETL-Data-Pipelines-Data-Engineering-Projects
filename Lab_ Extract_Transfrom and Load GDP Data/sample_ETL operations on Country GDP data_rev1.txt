@@ -1,0 +1,87 @@
+# etl_project_gdp.py
+# Unified ETL operations on Country-GDP data using conn consistently
+
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import sqlite3
+import numpy as np
+from datetime import datetime
+
+# ---------------- Logging ----------------
+def log_progress(message):
+    with open("etl_project_log.txt", "a") as log_file:
+        log_file.write(f"{datetime.now()} : {message}\n")
+
+# ---------------- Extraction ----------------
+def extract(url, table_attribs):
+    page = requests.get(url).text
+    soup = BeautifulSoup(page, "html.parser")
+    df = pd.DataFrame(columns=table_attribs)
+
+    # Locate the 3rd table (index 2)
+    tables = soup.find_all("tbody")
+    rows = tables[2].find_all("tr")
+
+    for row in rows:
+        cols = row.find_all("td")
+        if len(cols) > 0:
+            # Ensure first col has hyperlink and GDP is not '-'
+            if cols[0].find("a") and cols[2].text.strip() != '−':
+                country = cols[0].text.strip()
+                gdp_millions = cols[2].text.strip().replace(",", "")
+                df = pd.concat([df, pd.DataFrame([{
+                    "Country": country,
+                    "GDP_USD_millions": gdp_millions
+                }])], ignore_index=True)
+    return df
+
+# ---------------- Transformation ----------------
+def transform(df):
+    df["GDP_USD_millions"] = df["GDP_USD_millions"].astype(float)
+    df["GDP_USD_billions"] = np.round(df["GDP_USD_millions"] / 1000, 2)
+    df.drop(columns=["GDP_USD_millions"], inplace=True)
+    return df
+
+# ---------------- Loading ----------------
+def load_to_csv(df, csv_path):
+    df.to_csv(csv_path, index=False)
+
+def load_to_db(df, conn, table_name):
+    df.to_sql(table_name, conn, if_exists="replace", index=False)
+
+# ---------------- Query ----------------
+def run_query(query_statement, conn):
+    result = pd.read_sql(query_statement, conn)
+    print(result)
+
+# ---------------- Main ETL Process ----------------
+if _name_ == "_main_":
+    url = "https://web.archive.org/web/20230902185326/https://en.wikipedia.org/wiki/List_of_countries_by_GDP_%28nominal%29"
+    table_attribs = ["Country", "GDP_USD_millions"]
+    db_name = "World_Economies.db"
+    table_name = "Countries_by_GDP"
+    csv_path = "Countries_by_GDP.csv"
+
+    log_progress("Preliminaries complete. Initiating ETL process.")
+
+    df = extract(url, table_attribs)
+    log_progress("Data extraction complete. Initiating Transformation process.")
+
+    df = transform(df)
+    log_progress("Data transformation complete. Initiating loading process.")
+
+    load_to_csv(df, csv_path)
+    log_progress("Data saved to CSV file.")
+
+    conn = sqlite3.connect(db_name)
+    log_progress("SQL Connection initiated.")
+
+    load_to_db(df, conn, table_name)
+    log_progress("Data loaded to Database as table. Running the query.")
+
+    query = f"SELECT * from {table_name} WHERE GDP_USD_billions >= 100"
+    run_query(query, conn)
+    log_progress("Process Complete.")
+
+    conn.close()
